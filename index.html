@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="رصيدي">
+<meta name="theme-color" content="#1a1a2e">
+<title>رصيدي — نظام مالي شخصي</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%231a1a2e'/%3E%3Ctext x='90' y='120' font-size='90' text-anchor='middle'%3E%F0%9F%92%B0%3C/text%3E%3C/svg%3E">
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: 'Segoe UI','Tahoma',system-ui,sans-serif; background: #F6F6F4; color: #1a1a1a;
+         -webkit-user-select: none; user-select: none; }
+  input { -webkit-user-select: text; user-select: text; }
+  input:focus { outline: 2px solid #9061F9; outline-offset: 1px; }
+  button { font-family: inherit; cursor: pointer; }
+  #loading { text-align: center; padding: 80px 20px; color: #a8a29e; font-size: 14px; }
+  .app { max-width: 560px; margin: 0 auto; padding: max(20px, env(safe-area-inset-top)) 16px 60px; }
+
+  .auth-wrap { max-width: 420px; margin: 0 auto; padding: 60px 22px; min-height: 100vh;
+    display: flex; flex-direction: column; justify-content: center; }
+  .auth-logo { font-size: 46px; text-align: center; margin-bottom: 10px; }
+  .auth-title { font-size: 27px; font-weight: 800; text-align: center; letter-spacing: -0.5px; }
+  .auth-sub { font-size: 13px; color: #78716c; text-align: center; margin: 6px 0 28px; }
+  .auth-card { background: #fff; border-radius: 18px; padding: 22px; border: 1px solid #eeede9; }
+  .auth-tabs { display: flex; gap: 6px; background: #f2f1ee; padding: 4px; border-radius: 12px; margin-bottom: 18px; }
+  .auth-tab { flex: 1; padding: 9px; border: none; background: none; border-radius: 9px;
+    font-size: 13.5px; font-weight: 700; color: #78716c; }
+  .auth-tab.on { background: #fff; color: #1a1a2e; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .auth-err { background: #FDECEC; color: #E02424; padding: 10px 13px; border-radius: 10px;
+    font-size: 12.5px; margin-bottom: 14px; line-height: 1.6; }
+  .auth-ok { background: #E3F5EC; color: #0E9F6E; padding: 10px 13px; border-radius: 10px;
+    font-size: 12.5px; margin-bottom: 14px; line-height: 1.6; }
+
+  header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; gap: 10px; }
+  h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+  .sub { font-size: 12px; color: #78716c; margin-top: 4px; direction: ltr; }
+  .head-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .ghost { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; padding: 7px 11px;
+    background: #fff; border: 1px solid #e5e5e0; border-radius: 9px; color: #44403c; font-weight: 600; }
+
+  .hero { background: linear-gradient(135deg,#1a1a2e,#16213e); border-radius: 20px; padding: 20px 24px;
+    color: #fff; margin-bottom: 12px; box-shadow: 0 10px 30px -12px rgba(26,26,46,.5); }
+  .hero-label { display: flex; align-items: center; gap: 7px; font-size: 13px; opacity: .75; margin-bottom: 8px; }
+  .hero-val { font-size: 36px; font-weight: 800; line-height: 1; letter-spacing: -1px; }
+  .hero-cur { font-size: 16px; font-weight: 600; opacity: .7; }
+  .hero-note { font-size: 11.5px; opacity: .6; margin-top: 10px; }
+
+  .two-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .mini { background: #fff; border-radius: 15px; padding: 14px 15px; border: 1px solid #eeede9; }
+  .mini-head { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #78716c; margin-bottom: 6px; font-weight: 600; }
+  .mini-val { font-size: 20px; font-weight: 800; letter-spacing: -0.4px; }
+  .mini-sub { font-size: 10.5px; color: #a8a29e; margin-top: 4px; }
+
+  .flow-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .flow { background: #fff; border-radius: 15px; padding: 13px 10px; border: 1px solid #eeede9; text-align: center; }
+  .flow-icon { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center;
+    justify-content: center; margin: 0 auto 7px; font-size: 16px; }
+  .flow-label { font-size: 11px; color: #78716c; margin-bottom: 3px; }
+  .flow-val { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; }
+
+  .add-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .add-btn { display: flex; align-items: center; justify-content: center; gap: 3px; padding: 11px 3px;
+    border-radius: 12px; border: none; font-size: 12.5px; font-weight: 700; }
+  .pay-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 12px;
+    border-radius: 12px; border: 1.5px solid #9061F9; background: #F0EAFE; color: #9061F9;
+    font-weight: 700; font-size: 14px; margin-bottom: 16px; }
+
+  .card-wrap { background: #fff; border-radius: 16px; border: 1px solid #eeede9; overflow: hidden; margin-bottom: 16px; }
+  .list-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px;
+    font-weight: 700; font-size: 14px; border-bottom: 1px solid #f2f1ee; }
+  .count { font-size: 12px; background: #f2f1ee; padding: 2px 9px; border-radius: 20px; color: #78716c; }
+  .empty { padding: 40px 24px; text-align: center; color: #a8a29e; font-size: 13.5px; line-height: 1.7; }
+
+  .debt-card { padding: 14px 16px; border-bottom: 1px solid #f7f6f3; }
+  .debt-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .debt-name { font-size: 14.5px; font-weight: 700; }
+  .debt-meta { font-size: 11.5px; color: #a8a29e; margin-top: 2px; }
+  .debt-nums { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; font-size: 13px; }
+  .debt-of { font-size: 11.5px; color: #a8a29e; }
+  .bar { height: 7px; background: #f2f1ee; border-radius: 20px; overflow: hidden; margin-top: 8px; }
+  .bar-fill { height: 100%; border-radius: 20px; transition: width .4s ease; }
+  .debt-pct { font-size: 11px; color: #78716c; margin-top: 5px; }
+
+  .item { display: flex; align-items: center; gap: 11px; padding: 12px 16px; border-bottom: 1px solid #f7f6f3; }
+  .item-icon { width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0; font-size: 17px; }
+  .item-mid { flex: 1; min-width: 0; }
+  .item-cat { font-size: 14px; font-weight: 600; }
+  .item-meta { font-size: 11.5px; color: #a8a29e; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-amount { font-size: 15px; font-weight: 800; letter-spacing: -0.3px; direction: ltr; }
+  .del { background: none; border: none; color: #d6d3d1; padding: 5px; font-size: 15px; }
+
+  .overlay { position: fixed; inset: 0; background: rgba(20,20,30,.45); display: flex;
+    align-items: flex-end; justify-content: center; z-index: 50; }
+  .modal { background: #fff; border-radius: 22px 22px 0 0; padding: 22px; width: 100%; max-width: 560px;
+    max-height: 92vh; overflow-y: auto; padding-bottom: max(22px, env(safe-area-inset-bottom)); }
+  .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .modal-badge { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 10px;
+    font-size: 14px; font-weight: 700; }
+  .modal-close { background: #f2f1ee; border: none; border-radius: 9px; padding: 7px 10px; color: #57534e; font-size: 16px; }
+  .field { display: block; margin-bottom: 16px; }
+  .field-label { display: block; font-size: 12.5px; font-weight: 600; color: #57534e; margin-bottom: 7px; }
+  .input { width: 100%; padding: 12px 13px; border-radius: 11px; border: 1.5px solid #e7e5e0;
+    font-size: 16px; font-family: inherit; background: #faf9f7; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip { padding: 8px 13px; border-radius: 20px; border: 1.5px solid #e7e5e0; background: #fff;
+    font-size: 13px; font-weight: 600; color: #57534e; }
+  .row { display: flex; gap: 10px; }
+  .debt-opt { display: flex; justify-content: space-between; align-items: center; width: 100%;
+    padding: 12px 14px; border-radius: 11px; border: 1.5px solid #e7e5e0; background: #fff; margin-bottom: 7px; }
+  .preview { background: #F0EAFE; border-radius: 11px; padding: 12px 14px; font-size: 13.5px;
+    margin-bottom: 16px; line-height: 1.7; color: #57534e; }
+  .submit { width: 100%; padding: 14px; border-radius: 13px; border: none; color: #fff;
+    font-size: 15.5px; font-weight: 700; margin-top: 4px; }
+  .submit:disabled { opacity: .5; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1a1a2e;
+    color: #fff; padding: 11px 22px; border-radius: 12px; font-size: 13.5px; font-weight: 600;
+    z-index: 60; box-shadow: 0 8px 24px -8px rgba(0,0,0,.4); max-width: 90%; text-align: center; }
+  .sync { font-size: 10.5px; color: #a8a29e; text-align: center; margin-top: 20px; }
+</style>
+</head>
+<body>
+<div id="root"><div id="loading">جارٍ تحميل التطبيق…</div></div>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+// ═══════════════ إعدادات Supabase ═══════════════
+const SUPABASE_URL = "https://bcclhqbhhartirsznwnc.supabase.co";
+const SUPABASE_KEY = "sb_publishable_EPfKg8XC2sJ320dn3krssw_R6wG1U50";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const CUR = "ر.س";
+const LIQUID = ["نقد", "حساب بنكي"];
+
+const TYPES = {
+  income:  { label: "دخل",   color: "#0E9F6E", soft: "#E3F5EC", sign: +1, icon: "📈" },
+  expense: { label: "مصروف", color: "#E02424", soft: "#FDECEC", sign: -1, icon: "📉" },
+  asset:   { label: "أصل",   color: "#1C64F2", soft: "#E5EEFE", sign: +1, icon: "👛" },
+  debt:    { label: "دين",   color: "#9061F9", soft: "#F0EAFE", sign: -1, icon: "💳" },
+};
+
+const CATS = {
+  income:  ["راتب", "عمل حر", "استثمار", "هدية", "أخرى"],
+  expense: ["إيجار", "طعام", "مواصلات", "فواتير", "تسوق", "صحة", "ترفيه", "أخرى"],
+  asset:   ["نقد", "حساب بنكي", "ودائع", "استثمارات", "عقار", "سيارة", "أخرى"],
+  debt:    ["بطاقة ائتمان", "قرض بنكي", "تمويل سيارة", "قرض عقاري", "دين شخصي", "أخرى"],
+};
+
+const fmt = (n) => new Intl.NumberFormat("ar-SA", { maximumFractionDigits: 2 })
+  .format(Math.round((Number(n) || 0) * 100) / 100);
+const today = () => new Date().toISOString().slice(0, 10);
+
+
+// ═══════════════ الجذر ═══════════════
+function Root() {
+  const [session, setSession] = useState(null);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    sb.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setChecking(false);
+    });
+    const { data: sub } = sb.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  if (checking) return <div id="loading">جارٍ التحقق…</div>;
+  if (!session) return <Auth />;
+  return <App session={session} />;
+}
+
+
+// ═══════════════ تسجيل الدخول ═══════════════
+function Auth() {
+  const [mode, setMode] = useState("login");
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
+  const [err, setErr] = useState("");
+  const [ok, setOk] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setErr(""); setOk("");
+    if (!email.trim() || pass.length < 6) {
+      setErr("أدخل بريداً صحيحاً وكلمة مرور من 6 أحرف على الأقل");
+      return;
+    }
+    setBusy(true);
+    try {
+      if (mode === "signup") {
+        const { error } = await sb.auth.signUp({ email: email.trim(), password: pass });
+        if (error) throw error;
+        setOk("تم إنشاء الحساب! جارٍ الدخول…");
+      } else {
+        const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pass });
+        if (error) throw error;
+      }
+    } catch (e) {
+      const m = e.message || "";
+      if (m.includes("Invalid login")) setErr("البريد أو كلمة المرور غير صحيحة");
+      else if (m.includes("already registered")) setErr("هذا البريد مسجّل مسبقاً — سجّل دخولك");
+      else if (m.includes("Email not confirmed")) setErr("لم يُؤكَّد البريد. أوقف خيار Confirm email في Supabase");
+      else setErr(m || "حدث خطأ، حاول مرة أخرى");
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="auth-wrap">
+      <div className="auth-logo">💰</div>
+      <div className="auth-title">رصيدي</div>
+      <div className="auth-sub">نظام مالي شخصي — بياناتك محفوظة في السحابة</div>
+
+      <div className="auth-card">
+        <div className="auth-tabs">
+          <button className={"auth-tab" + (mode === "login" ? " on" : "")}
+            onClick={() => { setMode("login"); setErr(""); setOk(""); }}>تسجيل الدخول</button>
+          <button className={"auth-tab" + (mode === "signup" ? " on" : "")}
+            onClick={() => { setMode("signup"); setErr(""); setOk(""); }}>حساب جديد</button>
+        </div>
+
+        {err && <div className="auth-err">{err}</div>}
+        {ok && <div className="auth-ok">{ok}</div>}
+
+        <label className="field">
+          <span className="field-label">البريد الإلكتروني</span>
+          <input className="input" type="email" inputMode="email" value={email} dir="ltr"
+            onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" />
+        </label>
+        <label className="field">
+          <span className="field-label">كلمة المرور</span>
+          <input className="input" type="password" value={pass} dir="ltr"
+            onChange={(e) => setPass(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="••••••" />
+        </label>
+        <button className="submit" style={{ background: "#1a1a2e" }} onClick={submit} disabled={busy}>
+          {busy ? "جارٍ…" : mode === "signup" ? "إنشاء الحساب" : "دخول"}
+        </button>
+      </div>
+      <div className="sync">بياناتك خاصة بك وحدك ومحمية بسياسات أمان</div>
+    </div>
+  );
+}
+
+
+// ═══════════════ التطبيق ═══════════════
+function App({ session }) {
+  const uid = session.user.id;
+  const [txns, setTxns] = useState([]);
+  const [debts, setDebts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(null);
+  const [toast, setToast] = useState(null);
+  const timer = useRef(null);
+
+  const flash = useCallback((m) => {
+    setToast(m);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setToast(null), 2800);
+  }, []);
+
+  const fetchAll = useCallback(async () => {
+    const [t, d] = await Promise.all([
+      sb.from("transactions").select("*").order("txn_date", { ascending: false }),
+      sb.from("debts").select("*").order("created_at", { ascending: false }),
+    ]);
+    if (t.error) flash("تعذّر جلب العمليات");
+    if (d.error) flash("تعذّر جلب القروض");
+    setTxns(t.data || []);
+    setDebts(d.data || []);
+    setLoading(false);
+  }, [flash]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const addTxn = async (t) => {
+    const { error } = await sb.from("transactions").insert({
+      user_id: uid, type: t.type, category: t.category,
+      amount: t.amount, txn_date: t.date, note: t.note || null,
+    });
+    if (error) return flash("تعذّرت الإضافة: " + error.message);
+    flash("تمت الإضافة"); fetchAll();
+  };
+
+  const removeTxn = async (t) => {
+    const { error } = await sb.from("transactions").delete().eq("id", t.id);
+    if (error) return flash("تعذّر الحذف");
+    fetchAll();
+  };
+
+  const addDebt = async (d) => {
+    const { error } = await sb.from("debts").insert({
+      user_id: uid, name: d.name, category: d.category,
+      principal: d.principal, monthly: d.monthly, start_date: d.date,
+    });
+    if (error) return flash("تعذّرت الإضافة: " + error.message);
+    flash("تمت إضافة القرض"); fetchAll();
+  };
+
+  const removeDebt = async (id) => {
+    const { error } = await sb.from("debts").delete().eq("id", id);
+    if (error) return flash("تعذّر الحذف");
+    fetchAll();
+  };
+
+  const remainingOf = useCallback((d) => {
+    const paid = txns
+      .filter((t) => t.is_installment && t.debt_id === d.id)
+      .reduce((a, t) => a + Number(t.amount), 0);
+    return Math.max(0, Number(d.principal) - paid);
+  }, [txns]);
+
+  const payInstallment = async (debtId, amount, date) => {
+    const debt = debts.find((d) => d.id === debtId);
+    if (!debt) return;
+    const rem = remainingOf(debt);
+    const paid = Math.min(amount, rem);
+    const { error } = await sb.from("transactions").insert({
+      user_id: uid, type: "expense", category: "قسط", amount: paid,
+      txn_date: date, note: debt.name, debt_id: debtId, is_installment: true,
+    });
+    if (error) return flash("تعذّر السداد: " + error.message);
+    flash(rem - paid <= 0 ? "تم سداد القرض بالكامل 🎉" : "تم سداد القسط");
+    fetchAll();
+  };
+
+  const s = useMemo(() => {
+    const sum = (type, f = () => true) =>
+      txns.filter((t) => t.type === type && f(t)).reduce((a, t) => a + Number(t.amount), 0);
+    const income = sum("income"), expense = sum("expense");
+    const liquidTx = sum("asset", (t) => LIQUID.includes(t.category));
+    const fixed = sum("asset", (t) => !LIQUID.includes(t.category));
+    const liquid = liquidTx + income - expense;
+    const debtsRem = debts.reduce((a, d) => a + remainingOf(d), 0) + sum("debt");
+    const totalAssets = liquid + fixed;
+    return {
+      income, expense, liquid, fixed, totalAssets, debtsRem,
+      netWorth: totalAssets - debtsRem,
+      savings: income > 0 ? ((income - expense) / income) * 100 : 0,
+    };
+  }, [txns, debts, remainingOf]);
+
+  const activeDebts = debts
+    .map((d) => ({ ...d, remaining: remainingOf(d) }))
+    .filter((d) => d.remaining > 0);
+
+  const logout = async () => { await sb.auth.signOut(); };
+
+  if (loading) return <div id="loading">جارٍ تحميل بياناتك…</div>;
+
+  return (
+    <div className="app">
+      <header>
+        <div>
+          <h1>رصيدي</h1>
+          <div className="sub">{session.user.email}</div>
+        </div>
+        <div className="head-actions">
+          <button className="ghost" onClick={fetchAll}>↻</button>
+          <button className="ghost" onClick={logout}>خروج</button>
+        </div>
+      </header>
+
+      <div className="hero">
+        <div className="hero-label">💵 رصيدك الحقيقي (المتاح)</div>
+        <div className="hero-val" style={{ color: s.liquid >= 0 ? "#fff" : "#FCA5A5" }}>
+          {fmt(s.liquid)} <span className="hero-cur">{CUR}</span>
+        </div>
+        <div className="hero-note">نقد + بنك + الدخل − المصروف</div>
+      </div>
+
+      <div className="two-grid">
+        <div className="mini">
+          <div className="mini-head">⚖ صافي الثروة</div>
+          <div className="mini-val" style={{ color: s.netWorth >= 0 ? "#0E9F6E" : "#E02424" }}>
+            {fmt(s.netWorth)}
+          </div>
+          <div className="mini-sub">الأصول {fmt(s.totalAssets)} − الديون {fmt(s.debtsRem)}</div>
+        </div>
+        <div className="mini">
+          <div className="mini-head">🏢 أصول ثابتة</div>
+          <div className="mini-val" style={{ color: "#1C64F2" }}>{fmt(s.fixed)}</div>
+          <div className="mini-sub">عقار · سيارة · استثمار (غير متاحة)</div>
+        </div>
+      </div>
+
+      <div className="flow-grid">
+        <Flow icon="📈" label="الدخل" value={fmt(s.income)} color="#0E9F6E" soft="#E3F5EC" />
+        <Flow icon="📉" label="المصروف" value={fmt(s.expense)} color="#E02424" soft="#FDECEC" />
+        <Flow icon="🐷" label="نسبة الادخار" value={s.savings.toFixed(0) + "%"}
+          color={s.income - s.expense >= 0 ? "#0E9F6E" : "#E02424"}
+          soft={s.income - s.expense >= 0 ? "#E3F5EC" : "#FDECEC"} />
+      </div>
+
+      <div className="add-row">
+        {["income", "expense", "asset"].map((k) => (
+          <button key={k} className="add-btn"
+            style={{ background: TYPES[k].soft, color: TYPES[k].color }}
+            onClick={() => setModal({ kind: "add", type: k })}>
+            ＋ {TYPES[k].label}
+          </button>
+        ))}
+        <button className="add-btn" style={{ background: TYPES.debt.soft, color: TYPES.debt.color }}
+          onClick={() => setModal({ kind: "newdebt" })}>＋ قرض</button>
+      </div>
+
+      {activeDebts.length > 0 && (
+        <button className="pay-btn" onClick={() => setModal({ kind: "pay" })}>💳 سداد قسط</button>
+      )}
+
+      {debts.length > 0 && (
+        <div className="card-wrap">
+          <div className="list-head"><span>القروض والديون</span></div>
+          {debts.map((d) => {
+            const rem = remainingOf(d);
+            const P = Number(d.principal);
+            const pct = P > 0 ? ((P - rem) / P) * 100 : 0;
+            const done = rem <= 0;
+            const col = done ? "#0E9F6E" : "#9061F9";
+            return (
+              <div className="debt-card" key={d.id}>
+                <div className="debt-top">
+                  <div>
+                    <div className="debt-name">{d.name} {done && "✓"}</div>
+                    <div className="debt-meta">{d.category} · قسط {fmt(d.monthly)} شهرياً</div>
+                  </div>
+                  <button className="del" onClick={() => removeDebt(d.id)}>🗑</button>
+                </div>
+                <div className="debt-nums">
+                  <span>المتبقي <b style={{ color: col }}>{fmt(rem)}</b></span>
+                  <span className="debt-of">من {fmt(P)}</span>
+                </div>
+                <div className="bar">
+                  <div className="bar-fill" style={{ width: pct + "%", background: col }} />
+                </div>
+                <div className="debt-pct">سُدّد {pct.toFixed(0)}%</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="card-wrap">
+        <div className="list-head">
+          <span>العمليات</span><span className="count">{txns.length}</span>
+        </div>
+        {txns.length === 0 ? (
+          <div className="empty">ابدأ بإدخال رصيدك الحالي كأصل، ثم أضف قروضك ودخلك.</div>
+        ) : txns.map((t) => {
+          const m = TYPES[t.type];
+          return (
+            <div className="item" key={t.id}>
+              <div className="item-icon" style={{ background: m.soft, color: m.color }}>
+                {t.is_installment ? "💳" : m.icon}
+              </div>
+              <div className="item-mid">
+                <div className="item-cat">{t.category}{t.is_installment ? " (قسط)" : ""}</div>
+                <div className="item-meta">{m.label} · {t.txn_date}{t.note ? " · " + t.note : ""}</div>
+              </div>
+              <div className="item-amount" style={{ color: m.color }}>
+                {m.sign > 0 ? "+" : "−"}{fmt(t.amount)}
+              </div>
+              <button className="del" onClick={() => removeTxn(t)}>🗑</button>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="sync">☁ بياناتك محفوظة في السحابة وتُزامَن على كل أجهزتك</div>
+
+      {modal?.kind === "add" && (
+        <AddModal type={modal.type} onClose={() => setModal(null)} onAdd={addTxn} />
+      )}
+      {modal?.kind === "newdebt" && (
+        <DebtModal onClose={() => setModal(null)} onAdd={addDebt} />
+      )}
+      {modal?.kind === "pay" && (
+        <PayModal debts={activeDebts} onClose={() => setModal(null)} onPay={payInstallment} />
+      )}
+
+      {toast && <div className="toast">{toast}</div>}
+    </div>
+  );
+}
+
+
+// ═══════════════ مكوّنات ═══════════════
+function Flow({ icon, label, value, color, soft }) {
+  return (
+    <div className="flow">
+      <div className="flow-icon" style={{ background: soft, color }}>{icon}</div>
+      <div className="flow-label">{label}</div>
+      <div className="flow-val" style={{ color }}>{value}</div>
+    </div>
+  );
+}
+
+function Shell({ title, color, soft, onClose, children }) {
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div className="modal-badge" style={{ background: soft, color }}>{title}</div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Chips({ items, value, onChange, color }) {
+  return (
+    <div className="chips">
+      {items.map((c) => (
+        <button key={c} className="chip" onClick={() => onChange(c)}
+          style={value === c ? { background: color, borderColor: color, color: "#fff" } : {}}>
+          {c}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AddModal({ type, onClose, onAdd }) {
+  const m = TYPES[type];
+  const [cat, setCat] = useState(CATS[type][0]);
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(today());
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    const v = parseFloat(amount);
+    if (!v || v <= 0) return;
+    setBusy(true);
+    await onAdd({ type, category: cat, amount: v, date, note: note.trim() });
+    onClose();
+  };
+
+  return (
+    <Shell title={"إضافة " + m.label} color={m.color} soft={m.soft} onClose={onClose}>
+      <label className="field">
+        <span className="field-label">المبلغ ({CUR})</span>
+        <input className="input" type="number" inputMode="decimal" value={amount} autoFocus
+          onChange={(e) => setAmount(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="0" />
+      </label>
+      <div className="field">
+        <span className="field-label">التصنيف</span>
+        <Chips items={CATS[type]} value={cat} onChange={setCat} color={m.color} />
+      </div>
+      <label className="field">
+        <span className="field-label">التاريخ</span>
+        <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      </label>
+      <label className="field">
+        <span className="field-label">ملاحظة (اختياري)</span>
+        <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="تفاصيل إضافية" />
+      </label>
+      <button className="submit" style={{ background: m.color }} onClick={submit}
+        disabled={busy || !amount || parseFloat(amount) <= 0}>
+        {busy ? "جارٍ الحفظ…" : "حفظ " + m.label}
+      </button>
+    </Shell>
+  );
+}
+
+function DebtModal({ onClose, onAdd }) {
+  const m = TYPES.debt;
+  const [name, setName] = useState("");
+  const [cat, setCat] = useState(CATS.debt[0]);
+  const [principal, setPrincipal] = useState("");
+  const [monthly, setMonthly] = useState("");
+  const [date, setDate] = useState(today());
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    const p = parseFloat(principal);
+    if (!p || p <= 0) return;
+    setBusy(true);
+    await onAdd({ name: name.trim() || cat, category: cat, principal: p,
+                  monthly: parseFloat(monthly) || 0, date });
+    onClose();
+  };
+
+  return (
+    <Shell title="إضافة قرض" color={m.color} soft={m.soft} onClose={onClose}>
+      <label className="field">
+        <span className="field-label">اسم القرض</span>
+        <input className="input" value={name} autoFocus
+          onChange={(e) => setName(e.target.value)} placeholder="مثال: تمويل سيارة" />
+      </label>
+      <div className="field">
+        <span className="field-label">النوع</span>
+        <Chips items={CATS.debt} value={cat} onChange={setCat} color={m.color} />
+      </div>
+      <div className="row">
+        <label className="field" style={{ flex: 1 }}>
+          <span className="field-label">إجمالي القرض</span>
+          <input className="input" type="number" inputMode="decimal" value={principal}
+            onChange={(e) => setPrincipal(e.target.value)} placeholder="134500" />
+        </label>
+        <label className="field" style={{ flex: 1 }}>
+          <span className="field-label">القسط الشهري</span>
+          <input className="input" type="number" inputMode="decimal" value={monthly}
+            onChange={(e) => setMonthly(e.target.value)} placeholder="2900" />
+        </label>
+      </div>
+      <label className="field">
+        <span className="field-label">تاريخ البداية</span>
+        <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      </label>
+      <button className="submit" style={{ background: m.color }} onClick={submit}
+        disabled={busy || !principal || parseFloat(principal) <= 0}>
+        {busy ? "جارٍ…" : "إضافة القرض"}
+      </button>
+    </Shell>
+  );
+}
+
+function PayModal({ debts, onClose, onPay }) {
+  const [debtId, setDebtId] = useState(debts[0]?.id || "");
+  const selected = debts.find((d) => d.id === debtId);
+  const [amount, setAmount] = useState(String(debts[0]?.monthly || ""));
+  const [date, setDate] = useState(today());
+  const [busy, setBusy] = useState(false);
+
+  const pick = (d) => { setDebtId(d.id); setAmount(String(d.monthly)); };
+
+  const submit = async () => {
+    const v = parseFloat(amount);
+    if (!v || v <= 0 || !debtId) return;
+    setBusy(true);
+    await onPay(debtId, v, date);
+    onClose();
+  };
+
+  return (
+    <Shell title="سداد قسط" color="#9061F9" soft="#F0EAFE" onClose={onClose}>
+      <div className="field">
+        <span className="field-label">القرض</span>
+        {debts.map((d) => (
+          <button key={d.id} className="debt-opt" onClick={() => pick(d)}
+            style={debtId === d.id ? { borderColor: "#9061F9", background: "#F0EAFE" } : {}}>
+            <span style={{ fontWeight: 700 }}>{d.name}</span>
+            <span style={{ fontSize: 12, color: "#78716c" }}>متبقٍّ {fmt(d.remaining)}</span>
+          </button>
+        ))}
+      </div>
+      <label className="field">
+        <span className="field-label">مبلغ القسط ({CUR})</span>
+        <input className="input" type="number" inputMode="decimal" value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && submit()} />
+      </label>
+      <label className="field">
+        <span className="field-label">التاريخ</span>
+        <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      </label>
+      {selected && (
+        <div className="preview">
+          بعد السداد: المتبقي يصبح <b>{fmt(Math.max(0, selected.remaining - (parseFloat(amount) || 0)))}</b> {CUR}
+          <br />
+          <span style={{ fontSize: 12, color: "#78716c" }}>
+            ويُخصم {fmt(parseFloat(amount) || 0)} من رصيدك السائل
+          </span>
+        </div>
+      )}
+      <button className="submit" style={{ background: "#9061F9" }} onClick={submit}
+        disabled={busy || !amount || parseFloat(amount) <= 0}>
+        {busy ? "جارٍ…" : "تأكيد السداد"}
+      </button>
+    </Shell>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<Root />);
+</script>
+</body>
+</html>
