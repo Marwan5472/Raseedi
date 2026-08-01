@@ -144,17 +144,17 @@ const CUR = "ر.س";
 const LIQUID = ["نقد", "حساب بنكي"];
 
 const TYPES = {
-  income:  { label: "دخل",   color: "#0E9F6E", soft: "#E3F5EC", sign: +1, icon: "📈" },
-  expense: { label: "مصروف", color: "#E02424", soft: "#FDECEC", sign: -1, icon: "📉" },
+  income:  { label: "دخل",   color: "#0E9F6E", soft: "#E3F5EC", sign: +1, icon: "📉" },
+  expense: { label: "مصروف", color: "#E02424", soft: "#FDECEC", sign: -1, icon: "📈" },
   asset:   { label: "أصل",   color: "#1C64F2", soft: "#E5EEFE", sign: +1, icon: "👛" },
   debt:    { label: "دين",   color: "#9061F9", soft: "#F0EAFE", sign: -1, icon: "💳" },
 };
 
 const CATS = {
-  income:  ["راتب", "عمل حر", "استثمار", "هدية", "أخرى"],
-  expense: ["إيجار", "طعام", "مواصلات", "فواتير", "تسوق", "صحة", "ترفيه", "أخرى"],
-  asset:   ["نقد", "حساب بنكي", "ودائع", "استثمارات", "عقار", "سيارة", "أخرى"],
-  debt:    ["بطاقة ائتمان", "قرض بنكي", "تمويل سيارة", "قرض عقاري", "دين شخصي", "أخرى"],
+  income:  ["راتب اساسي", "بدلات", "استثمار", "هدية", "سلف", "أخرى"],
+  expense: ["إيجار", "طعام", "مواصلات", "فواتير", "تسوق", "صحة", "ترفيه", "تسليف", "زكاة", "أخرى"],
+  asset:   ["نقد", "استثمارات", "عقار", "سيارة", "ادخار ارامكو", "اسهم ارامكو", "أخرى"],
+  debt:    ["قرض بنكي", "قرض عقاري", "دين شخصي", "تابي", "تمارا", "جمعية", "أخرى"],
 };
 
 const fmt = (n) => new Intl.NumberFormat("ar-SA", { maximumFractionDigits: 2 })
@@ -378,7 +378,7 @@ function App({ session }) {
         <div className="hero-val" style={{ color: s.liquid >= 0 ? "#fff" : "#FCA5A5" }}>
           {fmt(s.liquid)} <span className="hero-cur">{CUR}</span>
         </div>
-        <div className="hero-note">نقد + بنك + الدخل − المصروف</div>
+        <div className="hero-note">نقد + الدخل − المصروف</div>
       </div>
 
       <div className="two-grid">
@@ -397,9 +397,9 @@ function App({ session }) {
       </div>
 
       <div className="flow-grid">
-        <Flow icon="📈" label="الدخل" value={fmt(s.income)} color="#0E9F6E" soft="#E3F5EC" />
-        <Flow icon="📉" label="المصروف" value={fmt(s.expense)} color="#E02424" soft="#FDECEC" />
-        <Flow icon="🐷" label="نسبة الادخار" value={s.savings.toFixed(0) + "%"}
+        <Flow icon="📉" label="الدخل" value={fmt(s.income)} color="#0E9F6E" soft="#E3F5EC" />
+        <Flow icon="📈" label="المصروف" value={fmt(s.expense)} color="#E02424" soft="#FDECEC" />
+        <Flow icon="💰" label="نسبة الادخار" value={s.savings.toFixed(0) + "%"}
           color={s.income - s.expense >= 0 ? "#0E9F6E" : "#E02424"}
           soft={s.income - s.expense >= 0 ? "#E3F5EC" : "#FDECEC"} />
       </div>
