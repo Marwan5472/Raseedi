@@ -93,6 +93,13 @@
   .bar-fill { height: 100%; border-radius: 20px; transition: width .4s ease; }
   .debt-pct { font-size: 11px; color: #78716c; margin-top: 5px; }
 
+  /* موعد القسط */
+  .due-row { display: flex; align-items: center; gap: 7px; margin-top: 10px; flex-wrap: wrap; }
+  .due-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px;
+    font-weight: 700; padding: 5px 10px; border-radius: 9px; }
+  .due-edit { background: none; border: none; font-size: 11.5px; color: #a8a29e;
+    font-weight: 600; padding: 4px 2px; }
+
   .item { display: flex; align-items: center; gap: 11px; padding: 12px 16px; border-bottom: 1px solid #f7f6f3; }
   .item-icon { width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center;
     justify-content: center; flex-shrink: 0; font-size: 17px; }
@@ -187,6 +194,61 @@ const fmt = (n) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 })
   .format(Math.round((Number(n) || 0) * 100) / 100);
 const today = () => new Date().toISOString().slice(0, 10);
 const pad2 = (n) => String(n).padStart(2, "0");
+
+
+// ═══════════════ حساب موعد القسط ═══════════════
+const DAY_MS = 86400000;
+const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const isoOf = (d) => d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+
+// يوم القسط داخل الشهر، مع تقصيره لآخر يوم إن كان الشهر أقصر (فبراير مثلاً)
+const dueDateFor = (y, m, day) =>
+  new Date(y, m, Math.min(day, new Date(y, m + 1, 0).getDate()));
+
+// يوم القسط للقرض — من due_day، وإن لم يوجد فمن يوم تاريخ البداية
+const dayOfDebt = (d) => {
+  const n = Number(d.due_day);
+  if (n >= 1 && n <= 31) return n;
+  const fromStart = Number(String(d.start_date || "").slice(8, 10));
+  return fromStart >= 1 && fromStart <= 31 ? fromStart : 1;
+};
+
+const daysTxt = (n) =>
+  n === 1 ? "يوم واحد" : n === 2 ? "يومين" : n <= 10 ? n + " أيام" : n + " يوماً";
+
+// حالة القسط الحالية: مسدد / اليوم / متأخر / قادم
+function dueInfo(debt, txns) {
+  const day = dayOfDebt(debt);
+  const now = startOfDay(new Date());
+  const y = now.getFullYear(), m = now.getMonth();
+  const thisMonth = dueDateFor(y, m, day);
+  const passed = thisMonth.getTime() <= now.getTime();
+  const cycleStart = passed ? thisMonth : dueDateFor(y, m - 1, day);
+  const nextMonth = passed ? dueDateFor(y, m + 1, day) : thisMonth;
+
+  const startIso = isoOf(cycleStart);
+  const paid = txns.some(
+    (t) => t.is_installment && t.debt_id === debt.id && t.txn_date >= startIso
+  );
+
+  if (paid) {
+    const n = Math.round((nextMonth - now) / DAY_MS);
+    return { day, status: "paid", color: "#0E9F6E", soft: "#E3F5EC",
+      text: "قسط هذا الشهر مسدد · القادم بعد " + daysTxt(n) };
+  }
+
+  const diff = Math.round((thisMonth - now) / DAY_MS);
+  if (diff === 0)
+    return { day, status: "today", color: "#9061F9", soft: "#F0EAFE",
+      text: "موعد القسط اليوم" };
+  if (diff < 0)
+    return { day, status: "late", color: "#E02424", soft: "#FDECEC",
+      text: "تأخّر القسط " + daysTxt(-diff) };
+  return { day, status: "soon",
+    color: diff <= 5 ? "#B45309" : "#57534e",
+    soft:  diff <= 5 ? "#FEF3C7" : "#f2f1ee",
+    text: "بقي " + daysTxt(diff) + " على القسط" };
+}
 
 
 // ═══════════════ محلّل الرسائل البنكية ═══════════════
@@ -444,6 +506,7 @@ function App({ session }) {
     const { error } = await sb.from("debts").insert({
       user_id: uid, name: d.name, category: d.category,
       principal: d.principal, monthly: d.monthly, start_date: d.date,
+      due_day: d.due_day,
     });
     if (error) return flash("تعذّرت الإضافة: " + error.message);
     flash("تمت إضافة القرض"); fetchAll();
@@ -453,6 +516,12 @@ function App({ session }) {
     const { error } = await sb.from("debts").delete().eq("id", id);
     if (error) return flash("تعذّر الحذف");
     fetchAll();
+  };
+
+  const saveDueDay = async (id, day) => {
+    const { error } = await sb.from("debts").update({ due_day: day }).eq("id", id);
+    if (error) return flash("تعذّر الحفظ: " + error.message);
+    flash("تم تحديث موعد القسط"); fetchAll();
   };
 
   const remainingOf = useCallback((d) => {
@@ -492,9 +561,12 @@ function App({ session }) {
     };
   }, [txns, debts, remainingOf]);
 
-  const activeDebts = debts
-    .map((d) => ({ ...d, remaining: remainingOf(d) }))
-    .filter((d) => d.remaining > 0);
+  // كل قرض مع المتبقي وحالة موعد قسطه
+  const debtsView = useMemo(
+    () => debts.map((d) => ({ ...d, remaining: remainingOf(d), due: dueInfo(d, txns) })),
+    [debts, txns, remainingOf]
+  );
+  const activeDebts = debtsView.filter((d) => d.remaining > 0);
 
   const logout = async () => { await sb.auth.signOut(); };
 
@@ -564,11 +636,11 @@ function App({ session }) {
         <button className="pay-btn" onClick={() => setModal({ kind: "pay" })}>💳 سداد قسط</button>
       )}
 
-      {debts.length > 0 && (
+      {debtsView.length > 0 && (
         <div className="card-wrap">
           <div className="list-head"><span>القروض والديون</span></div>
-          {debts.map((d) => {
-            const rem = remainingOf(d);
+          {debtsView.map((d) => {
+            const rem = d.remaining;
             const P = Number(d.principal);
             const pct = P > 0 ? ((P - rem) / P) * 100 : 0;
             const done = rem <= 0;
@@ -590,6 +662,18 @@ function App({ session }) {
                   <div className="bar-fill" style={{ width: pct + "%", background: col }} />
                 </div>
                 <div className="debt-pct">سُدّد {pct.toFixed(0)}%</div>
+
+                {!done && (
+                  <div className="due-row">
+                    <span className="due-pill" style={{ background: d.due.soft, color: d.due.color }}>
+                      🗓 {d.due.text}
+                    </span>
+                    <button className="due-edit"
+                      onClick={() => setModal({ kind: "dueday", debt: d })}>
+                      يوم {d.due.day} من كل شهر ✏️
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -635,6 +719,9 @@ function App({ session }) {
       )}
       {modal?.kind === "pay" && (
         <PayModal debts={activeDebts} onClose={() => setModal(null)} onPay={payInstallment} />
+      )}
+      {modal?.kind === "dueday" && (
+        <DueDayModal debt={modal.debt} onClose={() => setModal(null)} onSave={saveDueDay} />
       )}
 
       {toast && <div className="toast">{toast}</div>}
@@ -859,14 +946,17 @@ function DebtModal({ onClose, onAdd }) {
   const [principal, setPrincipal] = useState("");
   const [monthly, setMonthly] = useState("");
   const [date, setDate] = useState(today());
+  const [dueDay, setDueDay] = useState(String(new Date().getDate()));
   const [busy, setBusy] = useState(false);
+
+  const cleanDay = Math.min(31, Math.max(1, parseInt(dueDay, 10) || 1));
 
   const submit = async () => {
     const p = parseFloat(principal);
     if (!p || p <= 0) return;
     setBusy(true);
     await onAdd({ name: name.trim() || cat, category: cat, principal: p,
-                  monthly: parseFloat(monthly) || 0, date });
+                  monthly: parseFloat(monthly) || 0, date, due_day: cleanDay });
     onClose();
   };
 
@@ -893,13 +983,60 @@ function DebtModal({ onClose, onAdd }) {
             onChange={(e) => setMonthly(e.target.value)} placeholder="2900" />
         </label>
       </div>
-      <label className="field">
-        <span className="field-label">تاريخ البداية</span>
-        <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-      </label>
+      <div className="row">
+        <label className="field" style={{ flex: 1 }}>
+          <span className="field-label">تاريخ البداية</span>
+          <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </label>
+        <label className="field" style={{ flex: 1 }}>
+          <span className="field-label">موعد القسط (يوم الشهر)</span>
+          <input className="input" type="number" inputMode="numeric" min="1" max="31" value={dueDay}
+            onChange={(e) => setDueDay(e.target.value)} placeholder="27" />
+        </label>
+      </div>
+      <div className="phint">
+        🗓 يُستقطع القسط يوم <b>{cleanDay}</b> من كل شهر. لو كان الشهر أقصر (فبراير مثلاً)
+        يُحتسب آخر يوم فيه.
+      </div>
       <button className="submit" style={{ background: m.color }} onClick={submit}
         disabled={busy || !principal || parseFloat(principal) <= 0}>
         {busy ? "جارٍ…" : "إضافة القرض"}
+      </button>
+    </Shell>
+  );
+}
+
+function DueDayModal({ debt, onClose, onSave }) {
+  const [day, setDay] = useState(String(dayOfDebt(debt)));
+  const [busy, setBusy] = useState(false);
+  const cleanDay = Math.min(31, Math.max(1, parseInt(day, 10) || 1));
+
+  const submit = async () => {
+    setBusy(true);
+    await onSave(debt.id, cleanDay);
+    onClose();
+  };
+
+  return (
+    <Shell title="موعد القسط" color="#9061F9" soft="#F0EAFE" onClose={onClose}>
+      <div className="phint">
+        {debt.name} — حدّد اليوم الذي يُستقطع فيه القسط من كل شهر.
+      </div>
+      <label className="field">
+        <span className="field-label">يوم الشهر (من 1 إلى 31)</span>
+        <input className="input" type="number" inputMode="numeric" min="1" max="31" value={day} autoFocus
+          onChange={(e) => setDay(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && submit()} />
+      </label>
+      <div className="preview">
+        القسط يوم <b>{cleanDay}</b> من كل شهر.
+        <br />
+        <span style={{ fontSize: 12, color: "#78716c" }}>
+          لو كان الشهر أقصر (فبراير مثلاً) يُحتسب آخر يوم فيه.
+        </span>
+      </div>
+      <button className="submit" style={{ background: "#9061F9" }} onClick={submit} disabled={busy}>
+        {busy ? "جارٍ…" : "حفظ الموعد"}
       </button>
     </Shell>
   );
@@ -929,7 +1066,12 @@ function PayModal({ debts, onClose, onPay }) {
         {debts.map((d) => (
           <button key={d.id} className="debt-opt" onClick={() => pick(d)}
             style={debtId === d.id ? { borderColor: "#9061F9", background: "#F0EAFE" } : {}}>
-            <span style={{ fontWeight: 700 }}>{d.name}</span>
+            <span style={{ display: "block", textAlign: "right" }}>
+              <span style={{ fontWeight: 700, display: "block" }}>{d.name}</span>
+              <span style={{ display: "block", fontSize: 11, marginTop: 3, color: d.due.color }}>
+                🗓 {d.due.text}
+              </span>
+            </span>
             <span style={{ fontSize: 12, color: "#78716c" }}>متبقٍّ {fmt(d.remaining)}</span>
           </button>
         ))}
